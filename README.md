@@ -1,195 +1,201 @@
-# ArcSilk — текст вдоль дуги на плате Altium
+# ArcSilk — Text Along an Arc on an Altium Board
 
-Скрипт Altium Designer, который расставляет строку текста вдоль выделенной дуги (или полной
-окружности) на слое шелкографии платы. Каждый символ получает свой поворот по касательной,
-собственный зазор по реальной ширине буквы и точку привязки на самой дуге — поэтому надпись
-идёт по окружности без разрывов, нахлёстов и «пляшущих» букв.
+An Altium Designer script that lays out a string of text along the selected arc (or a full
+circle) on a PCB silkscreen layer. Each character gets its own tangential rotation, its own gap
+based on the real glyph width, and an anchor point on the arc itself, so the text follows the
+circle without gaps, overlaps, or "dancing" letters.
 
-Переработка скрипта `AltiumGuideTextByCircleScript.pas` (Igor Emelyanoff, 2023).
+A rework of the `AltiumGuideTextByCircleScript.pas` script (Igor Emelyanoff, 2023).
 
-## Возможности
+## Features
 
-- **Геометрия из выделенной дуги.** Выделите дугу на плате — центр, радиус и углы подставятся
-  в поля автоматически (то же делает кнопка «Взять из дуги»). Без выделения всё задаётся руками.
-- **Шаг по реальной ширине символа.** Ширина каждого знака измеряется на плате, а не считается
-  как «длина дуги / число символов». Узкие (`I`, `J`, `.`, `,`) и широкие (`M`, `W`) буквы
-  не слипаются и не разъезжаются.
-- **Привязка к дуге, а не к середине текста.** Поворот идёт вокруг центра габарита символа, а
-  точка привязки (низ буквы) лежит на дуге — точки и запятые стоят на линии, а не на середине.
-- **Пробелы без объектов.** Пробел не создаёт объект на плате, но даёт правильный зазор.
-- **Два направления обхода.** «ПО Ч.С.» — текст сверху дуги, «Против Ч.С.» — под дугой,
-  чтобы надпись не была перевёрнута.
-- **Режим «Растянуть по дуге»** подгоняет зазоры так, чтобы строка заняла дугу целиком.
-- **Штриховой шрифт Altium или любой TrueType** (Arial, Times New Roman и любой установленный
-  в системе), плюс толщина штрихов для штрихового шрифта.
-- **Зеркальный текст** (`MirrorFlag`) для нижней стороны платы: буквы зеркалятся, а порядок
-  символов разворачивается — как у штатного зеркального текста.
-- **Отмена одной операцией.** Всё размещение проходит в одной транзакции: `Ctrl+Z` убирает его
-  целиком. Кнопки «Отменить» / «Отменить всё» умеют снимать размещения вместе с их union.
-- **Union из размещённых символов** — надпись потом двигается и копируется как один объект.
+- **Geometry from the selected arc.** Select an arc on the board and its center, radius and angles
+  are filled in automatically (the "From arc" button does the same). Without a selection,
+  everything is set by hand.
+- **Spacing by real glyph width.** The width of each character is measured on the board instead of
+  being computed as "arc length / character count". Narrow (`I`, `J`, `.`, `,`) and wide (`M`, `W`)
+  letters neither clump together nor drift apart.
+- **Anchored to the arc, not to the text midpoint.** Rotation goes around the center of the
+  character bounding box, and the anchor point (the bottom of the letter) lies on the arc, so
+  periods and commas sit on the line, not at mid-height.
+- **Spaces without objects.** A space creates no object on the board but still gives the correct
+  gap.
+- **Two traversal directions.** "Clockwise" puts the text above the arc, "CCW" below it, so the
+  text is not upside down.
+- **"Fit to arc" mode** adjusts the gaps so the string fills the whole arc.
+- **Altium stroke font or any TrueType font** (Arial, Times New Roman, or any font installed on
+  the system), plus stroke thickness for the stroke font.
+- **Mirrored text** (`MirrorFlag`) for the bottom side of the board: the letters are mirrored and
+  the character order is reversed, just like Altium's built-in mirrored text.
+- **Undo in one operation.** The whole placement runs in a single transaction: `Ctrl+Z` removes it
+  entirely. The "Undo" / "Undo all" buttons can remove placements together with their union.
+- **A union of the placed characters** — the string can then be moved and copied as one object.
 
-## Состав репозитория
+## Repository layout
 
-| Файл | Назначение |
+| File | Purpose |
 | --- | --- |
-| `AltiumGuideTextByArc.PrjScr` | Скрипт-проект Altium Designer. Содержит два документа: движок и окно параметров. |
-| `AltiumGuideTextByArcScript.pas` | Движок: измерение символов и функция `PlaceTextAlongArc`. Интерфейса не имеет. |
-| `AltiumGuideTextByArcForm.pas` | Модальное окно параметров, кнопки отмены, сохранение значений в `.ini`. Точка входа — `TextAlongArc`. |
-| `README.md` | Этот файл. |
+| `AltiumGuideTextByArc.PrjScr` | Altium Designer script project. Contains two documents: the engine and the parameters window. |
+| `AltiumGuideTextByArcScript.pas` | Engine: character measurement and the `PlaceTextAlongArc` function. No UI. |
+| `AltiumGuideTextByArcForm.pas` | Modal parameters window, undo buttons, saving values to `.ini`. Entry point: `TextAlongArc`. |
+| `AltiumGuideTextByArcForm.dfm` | Form description: layout of the parameters window. |
+| `README.md` | This file. |
 
-Файл описания окна `AltiumGuideTextByArcForm.dfm` в репозитории **не хранится**. Без него проект
-не компилируется (в коде используются компоненты `memoText`, `eCx`, `eCy`, `eR`, `eA1`, `eA2`,
-`eHeight`, `eGap`, `eShift`, `eStroke`, `rbMil`, `rbMM`, `rbIn`, `rbOut`, `cbFit`, `cbMirror`,
-`cbLayer`, `cbFont`, `btnArc`, `btnPlace`, `btnClose`, `btnHelp`, `btnUndo`, `btnUndoAll`,
-`lblMsg`, `gbText`, `gbArc`, `gbStyle`, `gbExport` и подписи к ним). Пока файла нет, движок
-`AltiumGuideTextByArcScript.pas` можно вызывать только из собственного скрипта — см.
-[«Запуск без окна»](#запуск-без-окна).
+The form file `AltiumGuideTextByArcForm.dfm` is stored next to the `.pas` files, and its name
+must match the form class and the `.pas` unit. Without it the project will not compile: the code
+uses the components `memoText`, `eCx`, `eCy`, `eR`, `eA1`, `eA2`, `eHeight`, `eGap`, `eShift`,
+`eStroke`, `rbMil`, `rbMM`, `rbIn`, `rbOut`, `cbFit`, `cbMirror`, `cbLayer`, `cbFont`, `btnArc`,
+`btnPlace`, `btnClose`, `btnHelp`, `btnUndo`, `btnUndoAll`, `lblMsg`, `gbText`, `gbArc`,
+`gbStyle`, `gbExport` and their labels. The `.dfm` itself is ASCII, and all captions are assigned
+from code in `TextByArcFormCreate`, so the window text does not depend on the encoding the form
+file was saved in.
 
-## Требования
+## Requirements
 
-- Altium Designer с поддержкой DelphiScript (редактор PCB).
-- Открытый документ платы `.PcbDoc` на момент запуска.
-- Все файлы скрипт-проекта лежат в одной папке; `.pas` и `.dfm` формы — рядом друг с другом.
+- Altium Designer with DelphiScript support (PCB editor).
+- A `.PcbDoc` board document open when the script is run.
+- All script-project files in one folder; the form's `.pas` and `.dfm` next to each other.
 
-## Быстрый старт
+## Quick start
 
-1. Откройте `.PcbDoc` и выделите на нём дугу, вдоль которой нужна надпись (необязательно, но
-   удобно: геометрия подставится сама).
-2. `DXP (File) » Run Script...` → выберите скрипт-проект → скрипт `AltiumGuideTextByArcForm.pas`
-   → процедуру `TextAlongArc`. Это единственная процедура без параметров, поэтому в списке
-   `Run Script` видна только она.
-3. В открывшемся окне проверьте текст, геометрию дуги, высоту символа и слой.
-4. Нажмите **«Разместить»**. Результат — одна операция, отменяется `Ctrl+Z`.
-5. Не понравилось — **«Отменить»** (последнее размещение) или **«Отменить всё»** (все размещения
-   этого сеанса), не закрывая окна.
+1. Open the `.PcbDoc` and select an arc to place the text along (optional but convenient: the
+   geometry is filled in automatically).
+2. `DXP (File) » Run Script...` → select the script project → the
+   `AltiumGuideTextByArcForm.pas` script → the `TextAlongArc` procedure. This is the only
+   parameterless procedure, so it is the only one shown in the `Run Script` list.
+3. In the window that opens, check the text, the arc geometry, the character height and the layer.
+4. Click **Place**. The result is one operation and is undone with `Ctrl+Z`.
+5. Don't like it? Use **Undo** (last placement) or **Undo all** (all placements of this session)
+   without closing the window.
 
-Если на момент открытия окна выделена дуга, её геометрия перекрывает значения, сохранённые с
-прошлого запуска. Если дуга не выделена — восстанавливаются значения из `.ini`.
+If an arc is selected when the window opens, its geometry overrides the values saved from the
+previous run. If no arc is selected, the values from the `.ini` file are restored.
 
-## Параметры окна
+## Window parameters
 
-### Дуга
+### Arc
 
-| Поле | Смысл |
+| Field | Meaning |
 | --- | --- |
-| Центр X, Центр Y | Центр дуги. Координаты — **от нулевой точки платы** (`Board.XOrigin/YOrigin`), как их показывает сам Altium. |
-| Радиус | Радиус дуги. |
-| Начальный угол (A1) | Угол, в котором **начинается** текст. Градусы, против часовой стрелки от оси +X. |
-| Конечный угол (A2) | Задаёт только протяжённость дуги (модуль разности A2 и A1). При `A1 = A2` получается полная окружность. |
-| «Взять из дуги» | Подставить центр, радиус и углы выделенной дуги. |
+| Center X, Center Y | Arc center. Coordinates are **relative to the board origin** (`Board.XOrigin/YOrigin`), as Altium itself displays them. |
+| Radius | Arc radius. |
+| Start angle (A1) | The angle at which the text **starts**. Degrees, counterclockwise from the +X axis. |
+| End angle (A2) | Only sets the arc span (the absolute difference between A2 and A1). With `A1 = A2` you get a full circle. |
+| "From arc" | Fill in the center, radius and angles of the selected arc. |
 
-Направление обхода задаётся не знаком углов, а переключателем: «ПО Ч.С.» — по часовой стрелке,
-«Против Ч.С.» — против. Порядок значений в полях A1/A2 при этом подстраивается автоматически,
-чтобы текст начинался в нужном месте.
+The traversal direction is set not by the sign of the angles but by the radio buttons: "Clockwise"
+or "CCW". The order of the values in the A1/A2 fields is adjusted automatically so the text starts
+at the right place.
 
-### Оформление
+### Appearance
 
-| Поле | Смысл |
+| Field | Meaning |
 | --- | --- |
-| Высота | Высота символа. |
-| Зазор | Расстояние между символами; может быть отрицательным (плотная посадка). |
-| Сдвиг | Радиальное смещение текста: `+` наружу от дуги, `−` внутрь. |
-| Толщина | Толщина штрихов. Только для штрихового шрифта, `0` — по умолчанию у Altium. |
-| «Растянуть по дуге» | Подогнать зазоры под длину дуги вместо фиксированного «Зазора». |
-| «Зеркально (для низа платы)» | Включить `MirrorFlag` — текст читается с обратной стороны платы. |
-| Единицы | Мили или миллиметры. При переключении значения полей пересчитываются. |
+| Height | Character height. |
+| Gap | Distance between characters; may be negative (tight packing). |
+| Shift | Radial offset of the text: `+` outward from the arc, `-` inward. |
+| Thickness | Stroke thickness. Stroke font only; `0` means the Altium default. |
+| "Fit to arc" | Fit the gaps to the arc length instead of using the fixed "Gap". |
+| "Mirror (bottom side)" | Enable `MirrorFlag` — the text reads from the back side of the board. |
+| Units | Mils or millimeters. Switching recalculates the field values. |
 
-Углы всегда в градусах, независимо от выбранных единиц.
+Angles are always in degrees, regardless of the selected units.
 
-### Слой и шрифт
+### Layer and font
 
-| Поле | Смысл |
+| Field | Meaning |
 | --- | --- |
-| Слой | «Текущий слой» (активный слой платы), Top Overlay, Bottom Overlay или Mechanical 1…32. |
-| Шрифт | «Штриховой Altium» или TrueType-шрифт по имени (Arial, Arial Narrow, Calibri, Courier New, Tahoma, Times New Roman, Verdana). |
-| «Справка» | Краткие подсказки по углам, зеркальности, сдвигу и отмене. |
-| «Отменить», «Отменить всё» | Откат размещений текущего сеанса (см. ниже). |
+| Layer | "Current layer" (the board's active layer), Top Overlay, Bottom Overlay, or Mechanical 1…32. |
+| Font | "Stroke (Altium)" or a TrueType font by name (Arial, Arial Narrow, Calibri, Courier New, Tahoma, Times New Roman, Verdana). |
+| "Help" | Brief tips on angles, mirroring, shift and undo. |
+| "Undo", "Undo all" | Roll back placements of the current session (see below). |
 
-## Как это работает
+## How it works
 
-1. **Измерение.** Для каждого уникального символа на плату временно добавляется текстовый объект,
-   читается его габарит (`BoundingRectangle`), объект удаляется — в результат он не попадает.
-   Ширина пробела измеряется как разница габаритов `A A` и `AA`, поэтому работает и на шрифтах,
-   где у пробела нет собственного габарита. Ширины кешируются по символу.
-2. **Зазор.** При включённом «Растянуть по дуге»: `(длина дуги − сумма ширин) / (N − 1)`,
-   иначе берётся значение поля «Зазор».
-3. **Раскладка.** Для каждого символа считается длина по дуге, затем угол
-   `θ = A1 ± (s / (R + сдвиг))`, точка привязки на окружности и поворот по касательной
-   (`θ ± 90°`). Для зеркального текста позиция зеркалится относительно середины строки, иначе
-   слово читалось бы задом наперёд.
-4. **Транзакция.** Всё размещение обёрнуто в `PCBServer.PreProcess` / `PostProcess` — это один шаг
-   отмены редактора.
-5. **Union.** Уже вне транзакции символы выделяются и объединяются командой `PCB:ManageUnions`
-   (action `CreateUnion`, в беззвучном режиме), после чего выделение снимается. Именно поэтому
-   объединение в union — отдельный шаг отмены: `Ctrl+Z` может понадобиться нажать дважды.
-6. **Сводка.** В строке сообщений окна выводятся фактическая длина текста, длина дуги и реальный
-   зазор, а также предупреждения — если строка длиннее дуги или символы перекрываются.
+1. **Measurement.** For each unique character, a text object is temporarily added to the board, its
+   bounding box (`BoundingRectangle`) is read, and the object is removed — it does not end up in
+   the result. The space width is measured as the difference between the bounding boxes of
+   `A A` and `AA`, so it also works for fonts where the space has no bounding box of its own.
+   Widths are cached per character.
+2. **Gap.** With "Fit to arc" enabled: `(arc length - sum of widths) / (N - 1)`; otherwise the
+   "Gap" field is used.
+3. **Layout.** For each character the arc length is computed, then the angle
+   `θ = A1 ± (s / (R + shift))`, the anchor point on the circle and the tangential rotation
+   (`θ ± 90°`). For mirrored text the position is mirrored about the middle of the string,
+   otherwise the word would read backwards.
+4. **Transaction.** The whole placement is wrapped in `PCBServer.PreProcess` / `PostProcess` — one
+   editor undo step.
+5. **Union.** Already outside the transaction, the characters are selected and combined with the
+   `PCB:ManageUnions` command (action `CreateUnion`, in silent mode), after which the selection is
+   cleared. That is why the union is a separate undo step: you may need to press `Ctrl+Z` twice.
+6. **Summary.** The message line of the window shows the actual text length, the arc length and the
+   effective gap, plus warnings if the string is longer than the arc or the characters overlap.
 
-## Отмена и union
+## Undo and union
 
-- «Отменить» делает шаг `PCB:Undo` и проверяет, убавилось ли текстовых объектов на плате;
-  если первым шагом снялся только union — делает второй шаг. Так снимается ровно одно размещение.
-- «Отменить всё» повторяет это в цикле, пока плата не перестанет «худеть», и останавливается,
-  чтобы не снести чужие действия.
-- Счётчики шагов живут в памяти сеанса: после перезапуска скрипта кнопки отмены снова неактивны,
-  а отменять остаётся штатным `Ctrl+Z`.
+- "Undo" performs a `PCB:Undo` step and checks whether the number of text objects on the board
+  decreased; if the first step removed only the union, it performs a second step. This removes
+  exactly one placement.
+- "Undo all" repeats this in a loop until the board stops shrinking, and stops so as not to wipe
+  out unrelated actions.
+- Step counters live in session memory: after the script restarts, the undo buttons are inactive
+  again, and undo is left to the regular `Ctrl+Z`.
 
-## Настройки
+## Settings
 
-Значения всех полей сохраняются при закрытии окна в файл `AltiumGuideTextByArc.ini` рядом с платой
-(в папке из `Board.FileName`) и восстанавливаются при следующем запуске. Файл создаётся на машине
-пользователя и в репозиторий не попадает.
+The values of all fields are saved when the window closes to `AltiumGuideTextByArc.ini` next to the
+board (in the folder from `Board.FileName`) and restored on the next run. The file is created on
+the user's machine and is not committed to the repository.
 
-## Ограничения и известные особенности
+## Limitations and known specifics
 
-- **Нет `.dfm`.** Пока файл `AltiumGuideTextByArcForm.dfm` отсутствует, окно собрать нельзя; все
-  подписи формы всё равно ставятся из кода (`TextByArcFormCreate`), поэтому сам `.dfm` остаётся
-  в ASCII и кириллица в нём не зависит от кодировки файла.
-- **Кодировка исходников — ANSI (Windows-1251).** Не пересохраняйте `.pas` в UTF-8: Altium читает
-  их как ANSI, и русские комментарии превратятся в мусор.
-- **Один экземпляр платы.** Скрипт работает только с активным документом PCB (`PCBServer`); в
-  другом редакторе (Schematic и т. п.) он не запустится и сообщит об этом.
-- **Точность.** Положение символов округляется до координат платы (`MilsToCoord`), поэтому
-  на очень малых радиусах погрешность заметна — увеличивайте радиус или высоту.
-- **Перекрытие.** Отрицательный зазор допустим, но при `gap < −(высота / 2)` скрипт предупреждает
-  о наложении символов.
-- **Union — отдельный шаг отмены**, см. выше.
+- **Sources are ASCII.** The `.pas` files contain no non-ASCII characters, so they no longer depend
+  on the ANSI/UTF-8 encoding Altium uses to read them; nothing gets garbled.
+- **One board instance.** The script only works with the active PCB document (`PCBServer`); it will
+  not start in another editor (Schematic, etc.) and reports that.
+- **Precision.** Character positions are rounded to board coordinates (`MilsToCoord`), so on very
+  small radii the error is noticeable — increase the radius or the height.
+- **Overlap.** A negative gap is allowed, but when `gap < -(height / 2)` the script warns about
+  overlapping characters.
+- **Union is a separate undo step**, see above.
 
-## Запуск без окна
+## Running without the window
 
-Движок не зависит от формы: вызовите `PlaceTextAlongArc` из собственного скрипта. Параметры — в
-милах, координаты абсолютные, углы в градусах:
+The engine does not depend on the form: call `PlaceTextAlongArc` from your own script. The
+parameters are in mils, the coordinates are absolute, the angles are in degrees:
 
 ```pascal
-Cnt := PlaceTextAlongArc(Board, 'ARC SILK',          { текст }
-                         CxMil, CyMil, RMil,         { центр и радиус }
-                         0, 360,                     { A1, A2 - полный круг }
-                         60, 5, 0, 0,                { высота, зазор, сдвиг, толщина }
-                         False, True, False,         { ПО Ч.С., растянуть, зеркально }
-                         eTopOverlay,                { слой }
-                         False, '',                  { штриховой шрифт }
+Cnt := PlaceTextAlongArc(Board, 'ARC SILK',          { text }
+                         CxMil, CyMil, RMil,         { center and radius }
+                         0, 360,                     { A1, A2 - full circle }
+                         60, 5, 0, 0,                { height, gap, shift, thickness }
+                         False, True, False,         { clockwise, fit, mirror }
+                         eTopOverlay,                { layer }
+                         False, '',                  { stroke font }
                          ErrMsg, InfoMsg);
 ```
 
-`ErrMsg` — текст ошибки (`''` — норма), `InfoMsg` — сводка по фактическим размерам и
-предупреждения, результат — число созданных объектов.
+`ErrMsg` is the error text (`''` means OK), `InfoMsg` is a summary of the actual dimensions and
+warnings, and the result is the number of created objects.
 
-## Для разработчиков
+## For developers
 
-- Точка входа для `Run Script` — только `TextAlongArc` (Form.pas). Все остальные процедуры имеют
-  параметры и в списке не показываются.
-- Математика и работа с платой — в `...Script.pas`, интерфейс и сохранение настроек — в
-  `...Form.pas`. Геометрия передаётся между ними в милах, в координатах от нулевой точки платы.
-- Числа парсятся и печатаются вручную (`TryNum`, `NumStr`, `NumFix`): `StrToFloat` нельзя — на
-  русской локали разделитель дробной части запятая, а `try/except` в DelphiScript вокруг него
-  `EConvertError` не перехватывает. Принимаются и точка, и запятая; на выходе всегда точка.
-- Коэффициенты аварийной оценки ширины символа (если габарит с платы не прочитался) — константы
-  `FW_SPACE`, `FW_NARROW`, `FW_WIDE`, `FW_NORMAL` в начале `...Script.pas`.
-- Список слоёв, список шрифтов и все русские подписи окна задаются в `TextByArcFormCreate`.
-- Перед коммитом: сохранить `.pas` в ANSI, проверить, что при `A1 = A2` получается полный круг,
-  а одно размещение снимается одним `Ctrl+Z`.
+- The only `Run Script` entry point is `TextAlongArc` (Form.pas). All other procedures take
+  parameters and are not shown in the list.
+- The math and board handling live in `...Script.pas`; the UI and settings persistence live in
+  `...Form.pas`. Geometry is passed between them in mils, in coordinates relative to the board
+  origin.
+- Numbers are parsed and formatted manually (`TryNum`, `NumStr`, `NumFix`): `StrToFloat` cannot be
+  used — on locales where the decimal separator is a comma, `StrToFloat('1968.5')` fails, and
+  `try/except` in DelphiScript around it does not catch `EConvertError`. Both a period and a comma
+  are accepted; the output always uses a period.
+- The fallback character-width factors (used when the board bounding box cannot be read) are the
+  constants `FW_SPACE`, `FW_NARROW`, `FW_WIDE`, `FW_NORMAL` at the top of `...Script.pas`.
+- The layer list, the font list and all window captions are set in `TextByArcFormCreate`.
+- Before committing: keep the `.pas` files ASCII, check that `A1 = A2` produces a full circle, and
+  that a single placement is removed with one `Ctrl+Z`.
 
-## Лицензия
+## License
 
-Файл лицензии в репозиторий не добавлен; права на исходный скрипт-предшественник принадлежат его
-автору (Igor Emelyanoff).
+No license file has been added to the repository; the rights to the predecessor script belong to
+its author (Igor Emelyanoff).

@@ -1,33 +1,34 @@
 {==========================================================================}
 {  AltiumGuideTextByArcForm.pas                                            }
 {                                                                          }
-{  Окно параметров "Текст вдоль дуги" (скрипт-форма Altium).                }
+{  Parameters window for "Text Along Arc" (an Altium script form).         }
 {                                                                          }
-{  Работает в паре с файлом  AltiumGuideTextByArcForm.dfm                  }
-{  (имена файлов и имя формы в .dfm должны совпадать!) и вызывает расчёт    }
-{  из AltiumGuideTextByArcScript.pas. Оба .pas-файла и .dfm должны лежать   }
-{  в одном скрипт-проекте.                                                 }
+{  Works together with the AltiumGuideTextByArcForm.dfm file (the file     }
+{  names and the form name in the .dfm must match) and calls the           }
+{  calculation from AltiumGuideTextByArcScript.pas. Both .pas files and    }
+{  the .dfm must be in the same script project.                            }
 {                                                                          }
-{  Единственная точка входа для Run Script: TextAlongArc                    }
+{  The only Run Script entry point: TextAlongArc                           }
 {                                                                          }
-{  ВНИМАНИЕ: файл сохранён в кодировке ANSI (Windows-1251).                }
+{  NOTE: the file is pure ASCII, so it does not depend on the ANSI or      }
+{  UTF-8 encoding Altium uses to read it.                                  }
 {==========================================================================}
 
 {--------------------------------------------------------------------------}
-{  Служебные функции окна                                                  }
+{  Window helper functions                                                 }
 {--------------------------------------------------------------------------}
 
-{ Индекс в списке слоёв -> слой: 0 - текущий, 1 - Top Overlay,              }
+{ Index in the layer list -> layer: 0 - current, 1 - Top Overlay,           }
 { 2 - Bottom Overlay, 3..34 - Mechanical 1..32.                            }
 Const
-    { Пункт списка шрифтов, означающий штриховой шрифт Altium }
-    FONT_STROKE = 'Штриховой Altium';
+    { Font list entry that means the Altium stroke font }
+    FONT_STROKE = 'Stroke (Altium)';
 
-{ Текущие единицы полей ввода: False - милы, True - миллиметры.            }
-{ Коэффициенты перевода MIL2MM / MM2MIL объявлены в движке.               }
+{ Current input units: False - mils, True - millimeters.                   }
+{ The MIL2MM / MM2MIL factors are declared in the engine.                  }
 Var
     gUnitsMM : Boolean;
-    { сколько размещений сделано в этом сеансе и ещё не отменено }
+    { how many placements were made in this session and not undone yet }
     gPlaced  : Integer;
 
 Function ComboIndexToLayer(Board : IPCB_Board; Index : Integer) : TLayer;
@@ -42,21 +43,22 @@ Begin
         Result := Board.CurrentLayer;
 End;
 
-{ Поле ввода -> число; при ошибке пишет причину в строку сообщений окна.   }
-{ ВНИМАНИЕ: процедура не является методом формы, поэтому обращения к       }
-{ компонентам идут через экземпляр TextByArcForm.                          }
+{ Input field -> number; on error writes the reason to the window message  }
+{ line.                                                                    }
+{ NOTE: the procedure is not a form method, so components are accessed     }
+{ through the TextByArcForm instance.                                      }
 Function ReadNum(Edit : TEdit; const What : String; var V : Double) : Boolean;
 Begin
     Result := False;
     If Not TryNum(Edit.Text, V) Then
     Begin
-        TextByArcForm.lblMsg.Caption := 'Проверьте поле "' + What + '": ' + Trim(Edit.Text);
+        TextByArcForm.lblMsg.Caption := 'Check the "' + What + '" field: ' + Trim(Edit.Text);
         Exit;
     End;
     Result := True;
 End;
 
-{ Число с заданным количеством знаков после точки (без хвостовых нулей).   }
+{ Number with the given number of decimal places (no trailing zeros).      }
 Function NumFix(X : Double; Digits : Integer) : String;
 Var
     Neg, Done : Boolean;
@@ -100,8 +102,8 @@ Begin
     Result := T;
 End;
 
-{ Записать в поля геометрию выделенной дуги: X/Y - от нулевой точки платы, }
-{ в текущих единицах окна.                                                 }
+{ Fill the fields with the geometry of the selected arc: X/Y relative to   }
+{ the board origin, in the window's current units.                         }
 Procedure SetArcFields(Board : IPCB_Board; Arc : IPCB_Arc);
 Var
     K : Double;
@@ -123,7 +125,7 @@ Begin
     TextByArcForm.eCx.Text := NumFix((CoordToMils(Arc.XCenter) - Ox) * K, D);
     TextByArcForm.eCy.Text := NumFix((CoordToMils(Arc.YCenter) - Oy) * K, D);
     TextByArcForm.eR.Text  := NumFix(CoordToMils(Arc.Radius) * K, D);
-    { порядок углов задаёт направление обхода: "ПО Ч.С." - по часовой }
+    { the order of the angles sets the direction of the traversal }
     If TextByArcForm.rbIn.Checked Then
     Begin
         TextByArcForm.eA1.Text := NumStr(Arc.StartAngle);
@@ -136,7 +138,7 @@ Begin
     End;
 End;
 
-{ Папка, в которой лежит файл (вместе с завершающим обратным слэшем).      }
+{ Folder containing the file (with a trailing backslash).                  }
 Function DirOf(const S : String) : String;
 Var
     I : Integer;
@@ -152,13 +154,13 @@ Begin
     End;
 End;
 
-{ Файл с последними значениями полей - рядом с платой.                     }
+{ File with the last field values - next to the board.                     }
 Function SettingsFile(Board : IPCB_Board) : String;
 Begin
     Result := DirOf(Board.FileName) + 'AltiumGuideTextByArc.ini';
 End;
 
-{ Запомнить текущие значения полей окна.                                   }
+{ Remember the current values of the window fields.                        }
 Procedure SaveFormState(Board : IPCB_Board);
 Var
     SL, Lns : TStringList;
@@ -201,7 +203,7 @@ Begin
     End;
 End;
 
-{ Восстановить последние значения полей окна (если файл есть).             }
+{ Restore the last field values of the window (if the file exists).        }
 Procedure LoadFormState(Board : IPCB_Board);
 Var
     SL, Lns : TStringList;
@@ -273,7 +275,7 @@ Begin
     End;
 End;
 
-{ Пересчёт значения поля при смене единиц.                                 }
+{ Rescale a field value when the units change.                             }
 Function ScaleStr(const S : String; K : Double; Digits : Integer) : String;
 Var
     V : Double;
@@ -285,10 +287,10 @@ Begin
 End;
 
 {--------------------------------------------------------------------------}
-{  Обработчики окна                                                        }
+{  Window event handlers                                                   }
 {--------------------------------------------------------------------------}
 
-{ Один шаг отмены редактора (то же, что Ctrl+Z).                           }
+{ One editor undo step (the same as Ctrl+Z).                               }
 Procedure UndoOneStep(Dummy : Integer);
 Begin
     Try
@@ -298,8 +300,8 @@ Begin
     End;
 End;
 
-{ Сколько текстовых объектов на плате: по этому счётчику видно, снялось ли  }
-{ размещение, ведь union уходит отдельным шагом отмены.                    }
+{ How many text objects are on the board: this counter shows whether the   }
+{ placement was removed, since the union goes away in a separate undo step.}
 Function CountTextObjects(Board : IPCB_Board) : Integer;
 Var
     Iter : IPCB_BoardIterator;
@@ -324,16 +326,18 @@ Begin
     Result := N;
 End;
 
-{ Доступность кнопок отмены по счётчику неотменённых размещений.           }
+{ Enable the undo buttons according to the count of placements not undone }
+{ yet.                                                                    }
 Procedure RefreshUndoButtons(Dummy : Integer);
 Begin
     TextByArcForm.btnUndo.Enabled    := gPlaced > 0;
     TextByArcForm.btnUndoAll.Enabled := gPlaced > 1;
 End;
 
-{ Кнопка "Отменить": снимает одно размещение ЦЕЛИКОМ.                      }
-{ union создаётся отдельным шагом отмены, поэтому после первого шага        }
-{ проверяем, убавилось ли текстовых объектов, и если нет - делаем ещё шаг. }
+{ "Undo" button: removes one placement COMPLETELY.                         }
+{ The union is created in a separate undo step, so after the first step    }
+{ we check whether the number of text objects decreased, and if not, do    }
+{ one more step.                                                          }
 Procedure TTextByArcForm.btnUndoClick(Sender: TObject);
 Var
     Board : IPCB_Board;
@@ -342,14 +346,14 @@ Begin
     lblMsg.Caption := '';
     If gPlaced <= 0 Then
     Begin
-        lblMsg.Caption := 'Отменять нечего: размещений в этом сеансе нет.';
+        lblMsg.Caption := 'Nothing to undo: no placements in this session.';
         Exit;
     End;
     If PCBServer = Nil Then Exit;
     Board := PCBServer.GetCurrentPCBBoard;
     If Board = Nil Then
     Begin
-        lblMsg.Caption := 'Нет активной платы (PCB).';
+        lblMsg.Caption := 'No active PCB board.';
         Exit;
     End;
 
@@ -358,7 +362,7 @@ Begin
     After := CountTextObjects(Board);
     If After = Before Then
     Begin
-        { первым шагом снялся только union - снимаем и сами символы }
+        { the first step removed only the union - remove the characters too }
         UndoOneStep(0);
         After := CountTextObjects(Board);
     End;
@@ -367,14 +371,15 @@ Begin
     RefreshUndoButtons(0);
     Client.SendMessage('PCB:Zoom', 'Action=Redraw', 255, Client.CurrentView);
     If After < Before Then
-        lblMsg.Caption := 'Размещение отменено (текстовых объектов ' + IntToStr(Before) +
-                          ' -> ' + IntToStr(After) + '). Осталось неотменённых: ' +
+        lblMsg.Caption := 'Placement undone (text objects ' + IntToStr(Before) +
+                          ' -> ' + IntToStr(After) + '). Still placed: ' +
                           IntToStr(gPlaced) + '.'
     Else
-        lblMsg.Caption := 'Отменить не удалось: объектов на плате не убавилось.';
+        lblMsg.Caption := 'Undo failed: the number of objects on the board did not decrease.';
 End;
 
-{ Кнопка "Отменить всё": снимает все размещения сеанса (с их union).       }
+{ "Undo all" button: removes all placements of the session (with their      }
+{ unions).                                                                 }
 Procedure TTextByArcForm.btnUndoAllClick(Sender: TObject);
 Var
     Board : IPCB_Board;
@@ -384,14 +389,14 @@ Begin
     lblMsg.Caption := '';
     If gPlaced <= 0 Then
     Begin
-        lblMsg.Caption := 'Отменять нечего: размещений в этом сеансе нет.';
+        lblMsg.Caption := 'Nothing to undo: no placements in this session.';
         Exit;
     End;
     If PCBServer = Nil Then Exit;
     Board := PCBServer.GetCurrentPCBBoard;
     If Board = Nil Then
     Begin
-        lblMsg.Caption := 'Нет активной платы (PCB).';
+        lblMsg.Caption := 'No active PCB board.';
         Exit;
     End;
 
@@ -417,7 +422,7 @@ Begin
             End;
             If After >= Before Then
             Begin
-                { дальше откатывать нечего: чтобы не снести чужие действия }
+                { nothing left to roll back: so that unrelated actions are not wiped out }
                 gPlaced := 0;
                 Stop := True;
             End
@@ -431,10 +436,10 @@ Begin
 
     RefreshUndoButtons(0);
     Client.SendMessage('PCB:Zoom', 'Action=Redraw', 255, Client.CurrentView);
-    lblMsg.Caption := 'Отменено размещений: ' + IntToStr(Done) + '.';
+    lblMsg.Caption := 'Placements undone: ' + IntToStr(Done) + '.';
 End;
 
-{ Окно закрывается - запоминаем значения полей для следующего запуска.     }
+{ The window is closing - remember the field values for the next run.      }
 Procedure TTextByArcForm.TextByArcFormHide(Sender: TObject);
 Var
     Board : IPCB_Board;
@@ -445,13 +450,13 @@ Begin
     SaveFormState(Board);
 End;
 
-{ Создание окна: заполняем списки слоёв и шрифтов один раз.                }
+{ Window creation: fill the layer and font lists once.                     }
 Procedure TTextByArcForm.TextByArcFormCreate(Sender: TObject);
 Var
     I : Integer;
 Begin
     cbLayer.Items.Clear;
-    cbLayer.Items.Add('Текущий слой');
+    cbLayer.Items.Add('Current layer');
     cbLayer.Items.Add('Top Overlay');
     cbLayer.Items.Add('Bottom Overlay');
     For I := 1 To 32 Do
@@ -475,54 +480,55 @@ Begin
 
     lblMsg.Caption := '';
 
-    { единицы по умолчанию - миллиметры }
+    { default units - millimeters }
     rbMil.Checked := False;
     rbMM.Checked  := True;
     gUnitsMM      := True;
 
-    { Все русские подписи ставим здесь, из кода: файл .dfm остаётся в ASCII,  }
-    { поэтому кириллица не зависит от того, в какой кодировке его сохранят.   }
-    TextByArcForm.Caption := 'Текст вдоль дуги - параметры';
-    gbText.Caption := ' Текст ';
-    gbArc.Caption  := ' Дуга: A1 - начало текста, A2 - конец (A1 = A2 - полный круг) ';
-    lblCx.Caption  := 'Центр X:';
-    lblCy.Caption  := 'Центр Y:';
-    lblR.Caption   := 'Радиус:';
-    lblA1.Caption  := 'Начальный угол:';
-    lblA2.Caption  := 'Конечный угол:';
-    btnArc.Caption := 'Взять из дуги';
+    { All captions are set here, from code: the .dfm file stays ASCII, so the }
+    { window text does not depend on the encoding it was saved in.            }
+    TextByArcForm.Caption := 'Text Along Arc - parameters';
+    gbText.Caption := ' Text ';
+    gbArc.Caption  := ' Arc: A1 = text start, A2 = end (A1 = A2 = full circle) ';
+    lblCx.Caption  := 'Center X:';
+    lblCy.Caption  := 'Center Y:';
+    lblR.Caption   := 'Radius:';
+    lblA1.Caption  := 'Start angle:';
+    lblA2.Caption  := 'End angle:';
+    btnArc.Caption := 'From arc';
 
-    gbStyle.Caption   := ' Оформление ';
-    lblH.Caption      := 'Высота:';
-    lblGap.Caption    := 'Зазор:';
-    lblShift.Caption  := 'Сдвиг:';
-    lblShiftHint.Caption := '+ наружу, - внутрь';
-    rbOut.Caption     := 'ПО Ч.С.';
-    rbIn.Caption      := 'Против Ч.С.';
-    cbFit.Caption     := 'Растянуть по дуге';
-    cbMirror.Caption  := 'Зеркально (для низа платы)';
-    lblStroke.Caption := 'Толщина:';
-    lblStrokeHint.Caption := 'штриховой шрифт; 0 - по умолчанию';
-    lblUnits.Caption  := 'Единицы:';
-    rbMil.Caption     := 'Мили';
-    rbMM.Caption      := 'Миллиметры';
-    lblUnitsHint.Caption := 'X/Y - от нулевой точки платы';
+    gbStyle.Caption   := ' Appearance ';
+    lblH.Caption      := 'Height:';
+    lblGap.Caption    := 'Gap:';
+    lblShift.Caption  := 'Shift:';
+    lblShiftHint.Caption := '+ out, - in';
+    rbOut.Caption     := 'Clockwise';
+    rbIn.Caption      := 'CCW';
+    cbFit.Caption     := 'Fit to arc';
+    cbMirror.Caption  := 'Mirror (bottom side)';
+    lblStroke.Caption := 'Thickness:';
+    lblStrokeHint.Caption := 'stroke font only, 0 = default';
+    lblUnits.Caption  := 'Units:';
+    rbMil.Caption     := 'Mil';
+    rbMM.Caption      := 'Millimeters';
+    lblUnitsHint.Caption := 'X/Y from board origin';
 
-    gbExport.Caption := ' Слой и шрифт ';
-    lblLayer.Caption := 'Слой:';
-    lblFont.Caption  := 'Шрифт:';
+    gbExport.Caption := ' Layer and font ';
+    lblLayer.Caption := 'Layer:';
+    lblFont.Caption  := 'Font:';
 
-    btnHelp.Caption    := 'Справка';
-    btnUndo.Caption    := 'Отменить';
-    btnUndoAll.Caption := 'Отменить всё';
+    btnHelp.Caption    := 'Help';
+    btnUndo.Caption    := 'Undo';
+    btnUndoAll.Caption := 'Undo all';
     btnUndo.Enabled    := False;
     btnUndoAll.Enabled := False;
     gPlaced            := 0;
-    btnPlace.Caption := 'Разместить';
-    btnClose.Caption := 'Закрыть';
+    btnPlace.Caption := 'Place';
+    btnClose.Caption := 'Close';
 End;
 
-{ Показ окна: чистим сообщение и подставляем геометрию выделенной дуги.    }
+{ Showing the window: clear the message and fill in the selected arc       }
+{ geometry.                                                                }
 Procedure TTextByArcForm.TextByArcFormShow(Sender: TObject);
 Var
     Board : IPCB_Board;
@@ -533,16 +539,16 @@ Begin
     Board := PCBServer.GetCurrentPCBBoard;
     If Board = Nil Then Exit;
 
-    { восстанавливаем значения прошлого запуска }
+    { restore the values from the previous run }
     LoadFormState(Board);
 
-    { если выделена дуга - геометрия берётся из неё }
+    { if an arc is selected - take the geometry from it }
     Arc := FindSelectedArc(Board);
     If Arc = Nil Then Exit;
     SetArcFields(Board, Arc);
 End;
 
-{ Кнопка "Взять из дуги".                                                  }
+{ "From arc" button.                                                       }
 Procedure TTextByArcForm.btnArcClick(Sender: TObject);
 Var
     Board : IPCB_Board;
@@ -553,20 +559,20 @@ Begin
     Board := PCBServer.GetCurrentPCBBoard;
     If Board = Nil Then
     Begin
-        lblMsg.Caption := 'Нет активной платы (PCB).';
+        lblMsg.Caption := 'No active PCB board.';
         Exit;
     End;
     Arc := FindSelectedArc(Board);
     If Arc = Nil Then
     Begin
-        lblMsg.Caption := 'Дуга не выделена: щёлкните по дуге на плате и нажмите кнопку снова.';
+        lblMsg.Caption := 'No arc selected: click an arc on the board and press the button again.';
         Exit;
     End;
     SetArcFields(Board, Arc);
-    lblMsg.Caption := 'Геометрия взята из выделенной дуги.';
+    lblMsg.Caption := 'Geometry taken from the selected arc.';
 End;
 
-{ Переключатель единиц: милы <-> миллиметры.                              }
+{ Units switch: mils <-> millimeters.                                      }
 Procedure TTextByArcForm.rbUnitsClick(Sender: TObject);
 Var
     K : Double;
@@ -575,12 +581,12 @@ Begin
     If rbMM.Checked = gUnitsMM Then Exit;
     If rbMM.Checked Then
     Begin
-        K := MIL2MM;   { милы -> миллиметры }
+        K := MIL2MM;   { mils -> millimeters }
         D := 4;
     End
     Else
     Begin
-        K := MM2MIL;   { миллиметры -> милы }
+        K := MM2MIL;   { millimeters -> mils }
         D := 2;
     End;
     eCx.Text     := ScaleStr(eCx.Text, K, D);
@@ -594,7 +600,7 @@ Begin
     lblMsg.Caption := '';
 End;
 
-{ Кнопка "Разместить".                                                     }
+{ "Place" button.                                                          }
 Procedure TTextByArcForm.btnPlaceClick(Sender: TObject);
 Var
     Board   : IPCB_Board;
@@ -613,28 +619,28 @@ Begin
     Board := PCBServer.GetCurrentPCBBoard;
     If Board = Nil Then
     Begin
-        lblMsg.Caption := 'Нет активной платы (PCB).';
+        lblMsg.Caption := 'No active PCB board.';
         Exit;
     End;
 
     S := Trim(memoText.Text);
     If S = '' Then
     Begin
-        lblMsg.Caption := 'Введите строку текста.';
+        lblMsg.Caption := 'Enter a text string.';
         Exit;
     End;
 
-    If Not ReadNum(eCx,     'Центр X',        Cx) Then Exit;
-    If Not ReadNum(eCy,     'Центр Y',        Cy) Then Exit;
-    If Not ReadNum(eR,      'Радиус',         R)  Then Exit;
-    If Not ReadNum(eA1,     'Начальный угол', A1) Then Exit;
-    If Not ReadNum(eA2,     'Конечный угол',  A2) Then Exit;
-    If Not ReadNum(eHeight, 'Высота',         H)  Then Exit;
-    If Not ReadNum(eGap,    'Зазор',          G)  Then Exit;
-    If Not ReadNum(eShift,  'Сдвиг',          Sh) Then Exit;
-    If Not ReadNum(eStroke, 'Толщина',        Th) Then Exit;
+    If Not ReadNum(eCx,     'Center X',    Cx) Then Exit;
+    If Not ReadNum(eCy,     'Center Y',    Cy) Then Exit;
+    If Not ReadNum(eR,      'Radius',      R)  Then Exit;
+    If Not ReadNum(eA1,     'Start angle', A1) Then Exit;
+    If Not ReadNum(eA2,     'End angle',   A2) Then Exit;
+    If Not ReadNum(eHeight, 'Height',      H)  Then Exit;
+    If Not ReadNum(eGap,    'Gap',         G)  Then Exit;
+    If Not ReadNum(eShift,  'Shift',       Sh) Then Exit;
+    If Not ReadNum(eStroke, 'Thickness',   Th) Then Exit;
 
-    { поля заданы в выбранных единицах: миллиметры переводим в милы }
+    { the fields are in the selected units: convert millimeters to mils }
     If gUnitsMM Then
     Begin
         Cx := Cx * MM2MIL;
@@ -646,18 +652,18 @@ Begin
         Th := Th * MM2MIL;
     End;
 
-    { X/Y заданы от нулевой точки платы - переводим в абсолютные координаты }
+    { X/Y are relative to the board origin - convert to absolute coordinates }
     Cx := Cx + CoordToMils(Board.XOrigin);
     Cy := Cy + CoordToMils(Board.YOrigin);
 
     If R <= 0 Then
     Begin
-        lblMsg.Caption := 'Радиус должен быть больше нуля.';
+        lblMsg.Caption := 'Radius must be greater than zero.';
         Exit;
     End;
     If H <= 0 Then
     Begin
-        lblMsg.Caption := 'Высота символа должна быть больше нуля.';
+        lblMsg.Caption := 'Character height must be greater than zero.';
         Exit;
     End;
 
@@ -688,66 +694,67 @@ Begin
         Exit;
     End;
 
-    lblMsg.Caption := 'Готово, объектов: ' + IntToStr(Cnt) + '. ' + InfoMsg;
+    lblMsg.Caption := 'Done, objects: ' + IntToStr(Cnt) + '. ' + InfoMsg;
     gPlaced := gPlaced + 1;
     RefreshUndoButtons(0);
     SaveFormState(Board);
     Client.SendMessage('PCB:Zoom', 'Action=Redraw', 255, Client.CurrentView);
 End;
 
-{ Кнопка "Закрыть".                                                        }
+{ "Close" button.                                                          }
 Procedure TTextByArcForm.btnCloseClick(Sender: TObject);
 Begin
     Close;
 End;
 
-{ Кнопка "Справка".                                                        }
+{ "Help" button.                                                           }
 Procedure TTextByArcForm.btnHelpClick(Sender: TObject);
 Var
     Msg : String;
 Begin
-    Msg := 'Текст вдоль дуги' + CRLF + CRLF;
-    Msg := Msg + 'Текст НАЧИНАЕТСЯ в угле A1 и идёт в сторону A2:' + CRLF;
-    Msg := Msg + 'режим "ПО Ч.С." - по часовой стрелке, "Против Ч.С." - против.' + CRLF;
-    Msg := Msg + 'A2 задаёт протяжённость дуги (|A2 - A1|); при A1 = A2' + CRLF;
-    Msg := Msg + 'получается полный круг.' + CRLF + CRLF;
-    Msg := Msg + 'Кнопка "Взять из дуги" подставляет центр, радиус и углы' + CRLF;
-    Msg := Msg + 'выделенной на плате дуги (то же делается при открытии окна).' + CRLF + CRLF;
-    Msg := Msg + 'Флажок "Зеркально" включает MirrorFlag - так текст ставят на' + CRLF;
-    Msg := Msg + 'читался с обратной стороны (буквы зеркальны, порядок символов' + CRLF;
-    Msg := Msg + 'тоже разворачивается - как у штатного зеркального текста),' + CRLF;
-    Msg := Msg + 'например, на Bottom Overlay.' + CRLF + CRLF;
-    Msg := Msg + 'Режим "ПО Ч.С." - обход по часовой стрелке (текст над дугой,' + CRLF;
-    Msg := Msg + 'верхняя часть окружности); "Против Ч.С." - против часовой' + CRLF;
-    Msg := Msg + '(под дугой, для нижней части, чтобы текст не был перевёрнут).' + CRLF;
-    Msg := Msg + '"Растянуть по дуге" подгоняет зазоры так, чтобы' + CRLF;
-    Msg := Msg + 'строка заняла дугу целиком; иначе используется поле "Зазор".' + CRLF + CRLF;
-    Msg := Msg + 'Буквы стоят на дуге низом - точки и запятые попадают на линию,' + CRLF;
-    Msg := Msg + 'а не на середину высоты. Сдвинуть текст внутрь или наружу' + CRLF;
-    Msg := Msg + 'можно полем "Сдвиг" (минус - внутрь).' + CRLF + CRLF;
-    Msg := Msg + 'Слой: "Текущий слой" - активный слой платы.' + CRLF;
-    Msg := Msg + 'Шрифт: "Штриховой Altium" или любой TrueType по имени.' + CRLF + CRLF;
-    Msg := Msg + 'X/Y задаются от нулевой точки платы (Edit > Origin > Set);' + CRLF;
-    Msg := Msg + 'единицы (милы / миллиметры) переключаются в группе' + CRLF;
-    Msg := Msg + '"Оформление"; при переключении значения полей пересчитываются,' + CRLF;
-    Msg := Msg + 'углы всегда в градусах.' + CRLF + CRLF;
-    Msg := Msg + 'Размещённые символы объединяются в union: их можно выделить,' + CRLF;
-    Msg := Msg + 'двигать и копировать как один объект (Edit > Unions).' + CRLF + CRLF;
-    Msg := Msg + 'Кнопки отмены работают по размещениям этого сеанса:' + CRLF;
-    Msg := Msg + '"Отменить" - убирает последнее размещение вместе с его union' + CRLF;
-    Msg := Msg + '(нажимать можно многократно),' + CRLF;
-    Msg := Msg + '"Отменить всё" - снимает все размещения сеанса.' + CRLF;
-    Msg := Msg + 'Это шаги отмены редактора: если между размещениями что-то' + CRLF;
-    Msg := Msg + 'делали руками, отменятся и эти действия (как Ctrl+Z).' + CRLF + CRLF;
-    Msg := Msg + 'Значения полей запоминаются при закрытии окна в файле' + CRLF;
-    Msg := Msg + 'AltiumGuideTextByArc.ini рядом с платой и восстанавливаются при' + CRLF;
-    Msg := Msg + 'следующем запуске; если выделена дуга, её геометрия важнее.' + CRLF;
-    Msg := Msg + 'Всё размещение - один шаг отмены (Ctrl+Z).';
+    Msg := 'Text Along Arc' + CRLF + CRLF;
+    Msg := Msg + 'The text STARTS at angle A1 and runs toward A2:' + CRLF;
+    Msg := Msg + '"Clockwise" walks clockwise, "CCW" walks counterclockwise.' + CRLF;
+    Msg := Msg + 'A2 only sets the arc span (|A2 - A1|); with A1 = A2' + CRLF;
+    Msg := Msg + 'you get a full circle.' + CRLF + CRLF;
+    Msg := Msg + 'The "From arc" button fills in the center, radius and angles' + CRLF;
+    Msg := Msg + 'of the arc selected on the board (the same happens when the' + CRLF;
+    Msg := Msg + 'window opens).' + CRLF + CRLF;
+    Msg := Msg + 'The "Mirror" checkbox enables MirrorFlag: the text is meant' + CRLF;
+    Msg := Msg + 'to be read from the back side (letters are mirrored and the' + CRLF;
+    Msg := Msg + 'character order is reversed, like Altium built-in mirrored' + CRLF;
+    Msg := Msg + 'text), for example on Bottom Overlay.' + CRLF + CRLF;
+    Msg := Msg + '"Clockwise" walks clockwise (text above the arc, the upper' + CRLF;
+    Msg := Msg + 'part of the circle); "CCW" walks counterclockwise (below the' + CRLF;
+    Msg := Msg + 'arc, for the lower part, so the text is not upside down).' + CRLF;
+    Msg := Msg + '"Fit to arc" adjusts the gaps so that the string fills the' + CRLF;
+    Msg := Msg + 'whole arc; otherwise the "Gap" field is used.' + CRLF + CRLF;
+    Msg := Msg + 'Letters sit on the arc with their bottom, so periods and' + CRLF;
+    Msg := Msg + 'commas land on the line, not at mid-height. Use the "Shift"' + CRLF;
+    Msg := Msg + 'field to move the text inward or outward (minus = inward).' + CRLF + CRLF;
+    Msg := Msg + 'Layer: "Current layer" is the active board layer.' + CRLF;
+    Msg := Msg + 'Font: "Stroke (Altium)" or any TrueType font by name.' + CRLF + CRLF;
+    Msg := Msg + 'X/Y are relative to the board origin (Edit > Origin > Set);' + CRLF;
+    Msg := Msg + 'the units (mils / millimeters) are switched in the' + CRLF;
+    Msg := Msg + '"Appearance" group; switching recalculates the field values,' + CRLF;
+    Msg := Msg + 'angles are always in degrees.' + CRLF + CRLF;
+    Msg := Msg + 'The placed characters are combined into a union: they can be' + CRLF;
+    Msg := Msg + 'selected, moved and copied as a single object (Edit > Unions).' + CRLF + CRLF;
+    Msg := Msg + 'The undo buttons work on the placements of this session:' + CRLF;
+    Msg := Msg + '"Undo" removes the last placement together with its union' + CRLF;
+    Msg := Msg + '(can be pressed repeatedly),' + CRLF;
+    Msg := Msg + '"Undo all" removes all placements of the session.' + CRLF;
+    Msg := Msg + 'These are editor undo steps: if something was done by hand' + CRLF;
+    Msg := Msg + 'between placements, those actions are undone too (like Ctrl+Z).' + CRLF + CRLF;
+    Msg := Msg + 'Field values are saved when the window closes to' + CRLF;
+    Msg := Msg + 'AltiumGuideTextByArc.ini next to the board and restored on the' + CRLF;
+    Msg := Msg + 'next run; if an arc is selected, its geometry takes precedence.' + CRLF;
+    Msg := Msg + 'The whole placement is one undo step (Ctrl+Z).';
     ShowInfo(Msg);
 End;
 
 {--------------------------------------------------------------------------}
-{  Запуск окна                                                             }
+{  Starting the window                                                     }
 {--------------------------------------------------------------------------}
 Procedure TextAlongArc;
 Var
@@ -757,7 +764,7 @@ Begin
     Board := PCBServer.GetCurrentPCBBoard;
     If Board = Nil Then
     Begin
-        ShowError('Нет активной платы (PCB). Откройте .PcbDoc и запустите скрипт снова.');
+        ShowError('No active PCB board. Open a .PcbDoc and run the script again.');
         Exit;
     End;
 
@@ -768,5 +775,5 @@ Begin
 End;
 
 {==========================================================================}
-{  Конец файла                                                             }
+{  End of file                                                             }
 {==========================================================================}

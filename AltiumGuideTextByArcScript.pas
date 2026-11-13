@@ -1,47 +1,49 @@
 {==========================================================================}
 {  AltiumGuideTextByArcScript.pas                                          }
 {                                                                          }
-{  Расстановка текста вдоль дуги (или полной окружности) на плате PCB.     }
-{  Переработка AltiumGuideTextByCircleScript.pas (Igor Emelyanoff, 2023).  }
+{  Laying out text along an arc (or a full circle) on a PCB board.         }
+{  A rework of AltiumGuideTextByCircleScript.pas (Igor Emelyanoff, 2023).  }
 {                                                                          }
-{  Что изменилось по сравнению с исходным скриптом:                        }
-{   1. Геометрия берётся у ВЫДЕЛЕННОЙ на плате дуги (если она выделена),   }
-{      либо задаётся вручную: центр X/Y, радиус, начальный/конечный угол.   }
-{   2. Шаг между символами считается по РЕАЛЬНОЙ ширине каждого символа     }
-{      (замер габарита на плате), а не "360 / длина строки". Поэтому нет    }
-{      разрывов и нахлёстов на узких и широких буквах.                      }
-{   3. Поворот идёт вокруг ЦЕНТРА габарита символа, а не вокруг точки       }
-{      привязки текста, поэтому символы стоят точно на дуге.                }
-{   4. Пробелы не создают объектов, но дают правильный зазор.               }
-{   5. Режим "Против Ч.С." - для нижней части дуги (текст не вверх ногами).   }
-{   6. Режим "растянуть по дуге": зазоры подгоняются под длину дуги.        }
-{   7. Pi вместо 3.14, Double вместо Float, корректные типы, откат: всё      }
-{      размещение идёт одной операцией (одна отмена по Ctrl+Z).             }
-{   8. Штриховой шрифт Altium или TrueType (Arial и любой установленный).    }
-{   9. Всё размещение - одна операция: Ctrl+Z убирает его целиком.         }
+{  What changed compared to the original script:                           }
+{   1. The geometry is taken from the arc SELECTED on the board (if one    }
+{      is selected), or set manually: center X/Y, radius, start/end angle. }
+{   2. The step between characters is computed from the REAL width of each }
+{      character (bounding box measured on the board), not from            }
+{      "360 / string length". Therefore there are no gaps or overlaps on   }
+{      narrow and wide letters.                                            }
+{   3. Rotation goes around the CENTER of the character bounding box, not  }
+{      around the text anchor, so the characters sit exactly on the arc.   }
+{   4. Spaces create no objects but contribute the correct gap.            }
+{   5. "CCW" mode is for the lower part of the arc (the text is not        }
+{      upside down).                                                       }
+{   6. "Fit to arc" mode: the gaps are fitted to the arc length.           }
+{   7. Pi instead of 3.14, Double instead of Float, proper types, undo:    }
+{      the whole placement is one operation (one Ctrl+Z undo).             }
+{   8. Altium stroke font or TrueType (Arial and any installed font).      }
+{   9. The whole placement is one operation: Ctrl+Z removes it completely. }
 {                                                                          }
-{  Как запустить:                                                          }
-{      DXP (File) > Run Script... > единственная процедура TextAlongArc      }
-{      (окно параметров - в файле AltiumGuideTextByArcForm.pas, расчёт -     }
-{      здесь, в PlaceTextAlongArc). Все остальные процедуры имеют           }
-{      параметры, поэтому в списке Run Script не показываются.             }
+{  How to run:                                                             }
+{      DXP (File) > Run Script... > the only procedure TextAlongArc        }
+{      (the parameters window is in AltiumGuideTextByArcForm.pas, the      }
+{      calculation is here, in PlaceTextAlongArc). All other procedures    }
+{      have parameters, so they are not shown in the Run Script list.      }
 {                                                                          }
-{  Соглашения:                                                             }
-{      Длины задаются в миллиметрах; координаты X/Y - от НУЛЕВОЙ ТОЧКИ          }
-{      платы (так же, как их показывает сам Altium: Board.XOrigin/YOrigin).  }
-{      Углы в градусах, против часовой стрелки от оси +X; дуга идёт от       }
-{      начального угла к конечному ПРОТИВ часовой стрелки (как              }
-{      StartAngle/EndAngle у IPCB_Arc). В вопросах числа разделяются         }
-{      точкой с запятой ";". Файл в кодировке ANSI (Windows-1251).           }
+{  Conventions:                                                            }
+{      Lengths are in mils; X/Y coordinates are relative to the BOARD      }
+{      ORIGIN (as Altium itself displays them: Board.XOrigin/YOrigin).     }
+{      Angles are in degrees, counterclockwise from the +X axis; the arc   }
+{      goes from the start angle to the end angle COUNTERCLOCKWISE (like   }
+{      StartAngle/EndAngle of IPCB_Arc). Numbers use a period as the       }
+{      decimal separator. The file is pure ASCII.                          }
 {==========================================================================}
 
 Const
-    { Перевод длин: 1 мил = 0.001 дюйма = 0.0254 мм }
+    { Length conversion: 1 mil = 0.001 inch = 0.0254 mm }
     MIL2MM = 0.0254;
     MM2MIL = 39.3700787401575;
 
-    { Доли высоты символа, используемые как его ширина в аварийном случае, }
-    { когда замер габарита на плате не удался.                             }
+    { Fractions of the character height used as its width in the fallback  }
+    { case when the bounding box measurement on the board fails.           }
     FW_SPACE  = 0.50;
     FW_NARROW = 0.34;
     FW_WIDE   = 0.90;
@@ -50,11 +52,11 @@ Const
     CRLF = #13#10;
 
 {==========================================================================}
-{  Вспомогательные функции                                                 }
+{  Helper functions                                                        }
 {==========================================================================}
 
-{ Число в строку. Разделитель дробной части всегда точка, поэтому строка   }
-{ не зависит от региональных настроек Windows.                             }
+{ Number to string. The decimal separator is always a period, so the       }
+{ string does not depend on the Windows regional settings.                 }
 function NumStr(X : Double) : String;
 Var
     Neg, Done : Boolean;
@@ -95,13 +97,13 @@ Begin
     Result := T;
 End;
 
-{ Строка в число. Понимает и точку, и запятую как разделитель дробной      }
-{ части. При ошибке возвращает Def.                                        }
-{ Разбор числа вручную, без StrToFloat. Причина: в DelphiScript try/except
-  вокруг StrToFloat не перехватывает EConvertError, а на русской локали
-  StrToFloat('1968.5') падает - разделитель дробной части там запятая.
-  Здесь принимаются и точка, и запятая, и исключений не возникает.
-  Возвращает False, если строка не является числом.                       }
+{ String to number. Understands both a period and a comma as the decimal   }
+{ separator. Returns Def on error.                                         }
+{ The number is parsed manually, without StrToFloat. Reason: in
+  DelphiScript try/except around StrToFloat does not catch EConvertError,
+  and on locales with a comma decimal separator StrToFloat('1968.5') fails.
+  Here both a period and a comma are accepted and no exception is raised.
+  Returns False if the string is not a number.                            }
 function TryNum(const S : String; var V : Double) : Boolean;
 Var
     T : String;
@@ -161,8 +163,8 @@ Begin
     Result := True;
 End;
 
-{ Строка в число. Понимает и точку, и запятую как разделитель дробной      }
-{ части. При ошибке возвращает Def.                                        }
+{ String to number. Understands both a period and a comma as the decimal   }
+{ separator. Returns Def on error.                                         }
 function ParseNum(const S : String; Def : Double) : Double;
 Var
     V : Double;
@@ -180,7 +182,7 @@ End;
 
 
 
-{ Первая ВЫДЕЛЕННАЯ дуга на плате (или Nil).                               }
+{ The first SELECTED arc on the board (or Nil).                            }
 function FindSelectedArc(Board : IPCB_Board) : IPCB_Arc;
 Var
     Iter  : IPCB_BoardIterator;
@@ -209,7 +211,8 @@ Begin
 End;
 
 
-{ Аварийная оценка ширины символа, если габарит с платы не прочитался.     }
+{ Fallback estimate of the character width when the board bounding box     }
+{ could not be read.                                                       }
 function FallbackWidth(const Ch : String; SizeCoord : Integer) : Integer;
 Var
     C : String;
@@ -229,9 +232,9 @@ Begin
     Result := Round(SizeCoord * F);
 End;
 
-{ Замер символа: ширина габарита (W) в координатах платы. Временный объект   }
-{ добавляется на плату, замеряется и удаляется, поэтому в результат не       }
-{ попадает.                                                                }
+{ Character measurement: bounding box width (W) in board coordinates. A    }
+{ temporary object is added to the board, measured and removed, so it does }
+{ not end up in the result.                                                }
 procedure MeasureChar(Board : IPCB_Board; const Ch : String; SizeCoord : Integer;
                       WidthCoord : Integer;
                       Layer : TLayer; UseTT : Boolean; const FontName : String;
@@ -265,8 +268,9 @@ Begin
     Board.RemovePCBObject(Txt);
 End;
 
-{ Ширина пробела. Меряется как разница габаритов "A A" и "AA" - так         }
-{ работает и на шрифтах, где у пробела нет собственного габарита.           }
+{ Space width. Measured as the difference between the bounding boxes of    }
+{ "A A" and "AA" - this also works for fonts where the space has no        }
+{ bounding box of its own.                                                 }
 function MeasureSpaceWidth(Board : IPCB_Board; SizeCoord : Integer;
                            WidthCoord : Integer;
                            Layer : TLayer; UseTT : Boolean;
@@ -304,20 +308,20 @@ Begin
     End;
 End;
 
-{ Снять выделение со всех объектов платы. Нужно перед сборкой union,      }
-{ чтобы в него попали только наши символы.                                 }
+{ Deselect all objects on the board. Needed before assembling the union,   }
+{ so that only our characters get into it.                                 }
 procedure DeselectAll(Board : IPCB_Board);
 Var
     I : Integer;
 Begin
-    { штатная команда Edit > DeSelect > All }
+    { the built-in Edit > DeSelect > All command }
     Try
         ResetParameters;
         AddStringParameter('Scope', 'All');
         RunProcess('PCB:DeSelect');
     Except
     End;
-    { и на всякий случай снимаем флаг у объектов }
+    { and just in case clear the flag on the objects }
     For I := Board.SelectecObjectCount - 1 DownTo 0 Do
     Begin
         Try
@@ -328,27 +332,27 @@ Begin
 End;
 
 {==========================================================================}
-{  Раскладка строки вдоль дуги                                             }
+{  Laying out a string along an arc                                        }
 {                                                                          }
-{  CxMil, CyMil  - центр дуги, милы (абсолютные координаты платы);          }
-{  RMil          - радиус дуги, милы;                                      }
-{  A1, A2        - начало и конец дуги, градусы против часовой стрелки;     }
-{  SizeMil       - высота символа, милы;                                   }
-{  GapMil        - зазор между символами, милы (может быть отрицательным);  }
-{  ShiftMil      - радиальный сдвиг текста: + наружу, - внутрь, милы;      }
-{  StrokeMil     - толщина штрихов (только штриховой шрифт), милы;          }
-{                  0 - толщина по умолчанию, для TrueType игнорируется;     }
-{  ModeInside    - False: обход по часовой стрелке ("ПО Ч.С."),            }
-{                  True : против часовой ("Против Ч.С.");                 }
-{  FitToArc      - True: зазоры подгоняются под длину дуги;                }
-{  Mirror        - True: текст зеркальный (для нижней стороны платы);      }
-{  FontName      - имя TrueType-шрифта (при UseTT = True).                 }
-{  Каждый символ ставится так, что его точка привязки (низ буквы) лежит    }
-{  на дуге - поэтому точки, запятые и прочие низкие знаки стоят по низу     }
-{  строки, а не по её середине.                                           }
-{  Возвращает число созданных объектов.                                    }
-{  ErrMsg  - текст ошибки ('' = норма);                                    }
-{  InfoMsg - сводка по фактическим размерам и предупреждения.              }
+{  CxMil, CyMil  - arc center, mils (absolute board coordinates);          }
+{  RMil          - arc radius, mils;                                       }
+{  A1, A2        - start and end of the arc, degrees counterclockwise;     }
+{  SizeMil       - character height, mils;                                 }
+{  GapMil        - gap between characters, mils (may be negative);         }
+{  ShiftMil      - radial text offset: + outward, - inward, mils;          }
+{  StrokeMil     - stroke thickness (stroke font only), mils;              }
+{                  0 - default thickness, ignored for TrueType;            }
+{  ModeInside    - False: clockwise traversal ("Clockwise"),               }
+{                  True : counterclockwise ("CCW");                        }
+{  FitToArc      - True: the gaps are fitted to the arc length;            }
+{  Mirror        - True: mirrored text (for the bottom side of the board); }
+{  FontName      - TrueType font name (when UseTT = True).                 }
+{  Each character is placed so that its anchor point (the bottom of the    }
+{  letter) lies on the arc - that is why periods, commas and other low     }
+{  marks sit at the bottom of the line, not at its middle.                 }
+{  Returns the number of created objects.                                  }
+{  ErrMsg  - error text ('' = OK);                                         }
+{  InfoMsg - summary of the actual dimensions and warnings.                }
 {==========================================================================}
 function PlaceTextAlongArc(Board : IPCB_Board; const S : String;
                            CxMil, CyMil, RMil, A1, A2 : Double;
@@ -380,28 +384,28 @@ Begin
     N := Length(S);
     If N < 1 Then
     Begin
-        ErrMsg := 'Пустая строка.';
+        ErrMsg := 'Empty string.';
         Exit;
     End;
     If SizeMil <= 0 Then
     Begin
-        ErrMsg := 'Высота символа должна быть больше нуля.';
+        ErrMsg := 'Character height must be greater than zero.';
         Exit;
     End;
     If RMil <= 0 Then
     Begin
-        ErrMsg := 'Радиус должен быть больше нуля.';
+        ErrMsg := 'Radius must be greater than zero.';
         Exit;
     End;
 
-    { ---- протяжённость дуги: |A2 - A1|; при A1 = A2 - полный круг --------- }
+    { ---- arc span: |A2 - A1|; A1 = A2 means a full circle ---------------- }
     SpanDeg := Abs(A2 - A1);
     While SpanDeg > 360 Do SpanDeg := SpanDeg - 360;
     If SpanDeg <= 0 Then SpanDeg := 360;
 
-    { Текст НАЧИНАЕТСЯ в угле A1 и идёт в сторону A2:
-      "ПО Ч.С."     - по часовой стрелке (так текст читается сверху),
-      "Против Ч.С." - против часовой. A2 задаёт только протяжённость. }
+    { The text STARTS at angle A1 and goes toward A2:
+      "Clockwise" - clockwise (so the text reads above the arc),
+      "CCW"       - counterclockwise. A2 only sets the span. }
     StartRad := A1 * Pi / 180;
     SpanRad  := SpanDeg * Pi / 180;
 
@@ -417,12 +421,12 @@ Begin
 
     If RplC <= 0 Then
     Begin
-        ErrMsg := 'Радиус с учётом радиального сдвига получился <= 0.';
+        ErrMsg := 'Radius including the radial shift is <= 0.';
         Exit;
     End;
     If SizeC <= 0 Then
     Begin
-        ErrMsg := 'Высота символа получилась <= 0.';
+        ErrMsg := 'Character height is <= 0.';
         Exit;
     End;
 
@@ -435,12 +439,12 @@ Begin
     Board.LayerIsDisplayed[Layer] := True;
     Board.LayerIsUsed[Layer]      := True;
 
-    { сюда складываем созданные символы: понадобятся для выделения и union }
+    { collect the created characters here: needed for selection and union }
     ObjList := TInterfaceList.Create;
 
     PCBServer.PreProcess;
     Try
-        { ---- проход 1: ширины символов (кэш по символу) ---- }
+        { ---- pass 1: character widths (cached per character) ---- }
         TotW := 0;
         For I := 1 To N Do
         Begin
@@ -462,7 +466,7 @@ Begin
             TotW := TotW + ParseInt(CacheW[Idx], 0);
         End;
 
-        { ---- зазор: фиксированный или подогнанный под дугу ---- }
+        { ---- gap: fixed or fitted to the arc ---- }
         SArc := RplC * SpanRad;
         If FitToArc And (N > 1) Then
             GapEff := (SArc - TotW) / (N - 1)
@@ -470,7 +474,7 @@ Begin
             GapEff := GapC;
         Ltot := TotW + GapEff * (N - 1);
 
-        { ---- проход 2: создание символов на дуге ---- }
+        { ---- pass 2: creating the characters on the arc ---- }
         Cum     := 0;
         Created := 0;
         For I := 1 To N Do
@@ -479,11 +483,12 @@ Begin
             Idx := CacheK.IndexOf(Ch);
             Wf  := ParseInt(CacheW[Idx], 0);
 
-            { точка привязки символа (низ буквы) вдоль дуги. У зеркального
-              текста знак уходит влево от привязки, а сам текст Altium
-              зеркалит целиком - значит раскладку тоже надо развернуть,
-              иначе слово читается задом наперёд. Зеркалим позицию
-              относительно середины строки: привязка = Ltot - Cum. }
+            { anchor point of the character (bottom of the letter) along the
+              arc. With mirrored text the sign runs to the left of the anchor,
+              and Altium mirrors the whole text, so the layout must be
+              reversed too, otherwise the word reads backwards. Mirror the
+              position about the middle of the string:
+              anchor = Ltot - Cum. }
             If Mirror Then
                 SAdv := Ltot - Cum
             Else
@@ -499,7 +504,7 @@ Begin
                 Else
                     PhiDeg := ThetaDeg - 90;
 
-                { точка на дуге, куда ставится точка привязки символа }
+                { point on the arc where the character anchor is placed }
                 Px := CtrX + RplC * Cos(ThetaRad);
                 Py := CtrY + RplC * Sin(ThetaRad);
 
@@ -528,36 +533,36 @@ Begin
 
         Result := Created;
 
-        { ---- сводка по фактическим размерам ---- }
-        InfoMsg := 'Длина текста: ' + NumStr(CoordToMils(Round(Ltot))) + ' мил; ' +
-                   'длина дуги: ' + NumStr(CoordToMils(Round(SArc))) + ' мил; ' +
-                   'фактический зазор: ' + NumStr(CoordToMils(Round(GapEff))) + ' мил.';
+        { ---- summary of the actual dimensions ---- }
+        InfoMsg := 'Text length: ' + NumStr(CoordToMils(Round(Ltot))) + ' mil; ' +
+                   'arc length: ' + NumStr(CoordToMils(Round(SArc))) + ' mil; ' +
+                   'effective gap: ' + NumStr(CoordToMils(Round(GapEff))) + ' mil.';
         If (StrokeC > 0) And (Not UseTT) Then
-            InfoMsg := InfoMsg + CRLF + 'Толщина штрихов: ' +
-                       NumStr(CoordToMils(StrokeC)) + ' мил.';
+            InfoMsg := InfoMsg + CRLF + 'Stroke thickness: ' +
+                       NumStr(CoordToMils(StrokeC)) + ' mil.';
         If Mirror Then
-            InfoMsg := InfoMsg + CRLF + 'Текст зеркальный (для нижней стороны платы).';
+            InfoMsg := InfoMsg + CRLF + 'Mirrored text (for the bottom side of the board).';
         If Ltot > SArc + 1 Then
-            InfoMsg := InfoMsg + CRLF + 'Внимание: текст длиннее дуги на ' +
-                       NumStr(CoordToMils(Round(Ltot - SArc))) + ' мил - он выйдет за её пределы.';
+            InfoMsg := InfoMsg + CRLF + 'Warning: the text is ' +
+                       NumStr(CoordToMils(Round(Ltot - SArc))) + ' mil longer than the arc and will extend beyond it.';
         If GapEff < -SizeC / 2 Then
-            InfoMsg := InfoMsg + CRLF + 'Внимание: символы перекрываются - уменьшите высоту текста ' +
-                       'или увеличьте радиус.';
+            InfoMsg := InfoMsg + CRLF + 'Warning: the characters overlap - reduce the text height ' +
+                       'or increase the radius.';
     Finally
         CacheK.Free;
         CacheW.Free;
-        { закрываем транзакцию в любом случае - иначе отмена в Altium ломается }
+        { close the transaction in any case - otherwise undo in Altium breaks }
         PCBServer.PostProcess;
     End;
 
     Board.ViewManager_FullUpdate;
 
     { ---- union --------------------------------------------------------- }
-    { Процесс группировки работает с выделением, которое должно быть уже
-      применено редактором, поэтому вызываем его ПОСЛЕ PostProcess.        }
+    { The grouping process works with the selection, which must already be
+      applied by the editor, so we call it AFTER PostProcess. }
     If Created > 1 Then
     Begin
-        { выделяем символы уже вне транзакции }
+        { select the characters outside the transaction }
         DeselectAll(Board);
         For I := 0 To ObjList.Count - 1 Do
         Begin
@@ -568,7 +573,7 @@ Begin
             End;
         End;
 
-        { сколько наших объектов действительно помечено }
+        { how many of our objects are actually marked }
         SelFlags := 0;
         For I := 0 To ObjList.Count - 1 Do
         Begin
@@ -579,17 +584,18 @@ Begin
             End;
         End;
 
-        { даём редактору применить выделение }
+        { let the editor apply the selection }
         Board.ViewManager_FullUpdate;
         Client.SendMessage('PCB:Zoom', 'Action=Redraw', 255, Client.CurrentView);
         Sleep(150);
         SelBefore := Board.SelectecObjectCount;
 
         { Create Union From Selected Objects = PCB:ManageUnions,
-          параметр Action=CreateUnion (см. AdvPcb.rcs).
-          Mode=Silent / Silent=True - принятая в PCB-сервере конвенция
-          "не показывать диалог": иначе всплывает окно
-          "N objects added to union": передаём Mode/Silent/ShowDialog. }
+          parameter Action=CreateUnion (see AdvPcb.rcs).
+          Mode=Silent / Silent=True - the convention accepted in the PCB
+          server for "do not show a dialog": otherwise the
+          "N objects added to union" window pops up: pass
+          Mode/Silent/ShowDialog. }
         Grouped := False;
         Try
             ResetParameters;
@@ -606,20 +612,20 @@ Begin
         SelAfter := Board.SelectecObjectCount;
 
         InfoMsg := InfoMsg + CRLF +
-                   'Union: помечено ' + IntToStr(SelFlags) + ' из ' + IntToStr(Created) +
-                   ', редактор видит выделенных ' + IntToStr(SelBefore) +
-                   ', после команды ' + IntToStr(SelAfter) + '.';
+                   'Union: ' + IntToStr(SelFlags) + ' of ' + IntToStr(Created) +
+                   ' marked, the editor sees ' + IntToStr(SelBefore) +
+                   ' selected, ' + IntToStr(SelAfter) + ' after the command.';
         If Grouped Then
             InfoMsg := InfoMsg + CRLF +
-                       'Команда объединения выполнена. Если Ctrl+Z не убрал текст ' +
-                       'с первого раза - union отдельный шаг отмены.'
+                       'Union command completed. If Ctrl+Z did not remove the ' +
+                       'text the first time, the union is a separate undo step.'
         Else
             InfoMsg := InfoMsg + CRLF +
-                       'Команда PCB:ManageUnions вернула ошибку - union не создан.';
+                       'PCB:ManageUnions returned an error - union not created.';
     End;
 
-    { после размещения ничего не оставляем выделенным: выделение нужно было
-      только чтобы собрать union }
+    { after placement leave nothing selected: the selection was only
+      needed to assemble the union }
     If Created > 0 Then
         DeselectAll(Board);
 
@@ -627,5 +633,5 @@ Begin
 End;
 
 {==========================================================================}
-{  Конец файла                                                             }
+{  End of file                                                             }
 {==========================================================================}
